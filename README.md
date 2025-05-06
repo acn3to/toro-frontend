@@ -41,12 +41,6 @@ or
 ng serve --open
 ```
 
-### Using the Python Script
-
-```bash
-python serve.py
-```
-
 ## Architecture
 
 The application is organized into:
