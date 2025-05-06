@@ -1,6 +1,13 @@
 import { Injectable } from '@angular/core';
-import { Subject } from 'rxjs';
+import { Subject, BehaviorSubject } from 'rxjs';
 import { Message } from './models/message.model';
+
+export enum MessageStatus {
+  IDLE = 'idle',
+  PENDING = 'pending',
+  COMPLETED = 'completed',
+  ERROR = 'error'
+}
 
 @Injectable({
   providedIn: 'root'
@@ -12,6 +19,9 @@ export class QuestionsService {
   
   private connectionStatusSubject = new Subject<boolean>();
   connectionStatus$ = this.connectionStatusSubject.asObservable();
+  
+  private messageStatusSubject = new BehaviorSubject<MessageStatus>(MessageStatus.IDLE);
+  messageStatus$ = this.messageStatusSubject.asObservable();
   
   private readonly API_ENDPOINT = 'https://ka8fa8gabl.execute-api.us-east-2.amazonaws.com/Prod/questions';
   private readonly WEBSOCKET_BASE = 'wss://48u9qfzbz5.execute-api.us-east-2.amazonaws.com/prod';
@@ -25,7 +35,6 @@ export class QuestionsService {
   connectWebSocket(userId: string): void {
     this.currentUserId = userId;
     
-    // Carregar mensagens salvas
     this.loadMessages(userId);
     
     const url = `${this.WEBSOCKET_BASE}?user_id=${userId}`;
@@ -45,12 +54,15 @@ export class QuestionsService {
           const data = JSON.parse(event.data);
           
           if (data.type === 'question_update' && data.status === 'completed') {
+            this.messageStatusSubject.next(MessageStatus.COMPLETED);
             this.addMessage(data.answer, false);
           } else if (data.type === 'question_update' && data.status === 'error') {
+            this.messageStatusSubject.next(MessageStatus.ERROR);
             this.addMessage('Erro ao processar pergunta: ' + (data.error_message || 'Erro desconhecido'), false);
           }
         } catch (error) {
           console.error('Erro ao processar mensagem:', error);
+          this.messageStatusSubject.next(MessageStatus.ERROR);
         }
       };
       
@@ -85,6 +97,8 @@ export class QuestionsService {
     try {
       this.addMessage(question, true);
       
+      this.messageStatusSubject.next(MessageStatus.PENDING);
+      
       const response = await fetch(this.API_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -100,13 +114,14 @@ export class QuestionsService {
       
       if (!data.success) {
         console.error('Erro ao enviar pergunta:', data.error);
+        this.messageStatusSubject.next(MessageStatus.ERROR);
         this.addMessage('Erro ao enviar pergunta: ' + data.error, false);
-      } else {
-        this.addMessage('Pergunta enviada! Aguardando resposta...', false);
       }
+
       
     } catch (error) {
       console.error('Erro ao enviar pergunta:', error);
+      this.messageStatusSubject.next(MessageStatus.ERROR);
       this.addMessage('Erro ao enviar pergunta', false);
     }
   }

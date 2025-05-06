@@ -63,3 +63,21 @@ input {
 .btn-primary:hover {
   background-color: #c8161c;
 }
+
+@keyframes blink-caret {
+  from, to { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.typing-effect::after {
+  content: '|';
+  margin-left: 2px;
+  animation: blink-caret 0.75s step-end infinite;
+  color: var(--toro-red);
+  font-weight: bold;
+}
+
+@keyframes typing {
+  from { width: 0 }
+  to { width: 100% }
+}

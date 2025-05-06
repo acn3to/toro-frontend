@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, Pipe, PipeTransform } from '@angular/core
 import { CommonModule, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../auth.service';
-import { QuestionsService } from '../questions.service';
+import { QuestionsService, MessageStatus } from '../questions.service';
 import { Message } from '../models/message.model';
 import { Subscription } from 'rxjs';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -17,14 +17,26 @@ export class FormatMessagePipe implements PipeTransform {
   transform(text: string): SafeHtml {
     if (!text) return '';
     
+    // Se o texto já contém tags HTML, apenas remover referências %[n]%
+    if (text.includes('<span') || text.includes('<br>') || text.includes('<strong>')) {
+      let formattedText = text.replace(/%\[\d+\]%/g, '');
+      return this.sanitizer.bypassSecurityTrustHtml(formattedText);
+    }
+    
+    // Processamento normal para texto sem HTML
+    // Remover as referências no formato %[n]%
     let formattedText = text.replace(/%\[\d+\]%/g, '');
     
+    // Substituir quebras de linha por <br>
     formattedText = formattedText.replace(/\n/g, '<br>');
     
+    // Converter marcadores de lista (1., 2., etc) para elementos HTML
     formattedText = formattedText.replace(/(\d+\.)\s+([^\n]+)/g, '<span class="list-item">$1 $2</span>');
     
+    // Converter marcadores de lista não numerada
     formattedText = formattedText.replace(/[•\-]\s+([^\n]+)/g, '<span class="list-item">• $1</span>');
     
+    // Converter texto em negrito (**texto**)
     formattedText = formattedText.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     
     return this.sanitizer.bypassSecurityTrustHtml(formattedText);
@@ -47,7 +59,7 @@ export class FormatMessagePipe implements PipeTransform {
             {{ isConnected ? 'Conectado' : 'Desconectado' }}
           </div>
           <div class="header-actions">
-            <button class="btn-action" (click)="clearChat()" title="Limpar histórico">
+            <button class="btn-action" (click)="openConfirmModal()" title="Limpar histórico">
               <span class="action-text">Limpar</span>
             </button>
             <button class="btn-action btn-logout" (click)="logout()">
@@ -58,12 +70,21 @@ export class FormatMessagePipe implements PipeTransform {
       </div>
       
       <div class="chat-messages" #chatMessages>
-        <div *ngFor="let message of messages" 
+        <div *ngFor="let message of messages; let i = index" 
              class="message" 
              [class.user-message]="message.isUser" 
-             [class.ai-message]="!message.isUser">
+             [class.ai-message]="!message.isUser"
+             [class.welcome-message]="i === 0 && !message.isUser">
           <div *ngIf="message.isUser">{{ message.text }}</div>
-          <div *ngIf="!message.isUser" [innerHTML]="message.text | formatMessage"></div>
+          <div *ngIf="!message.isUser" [innerHTML]="message.text | formatMessage" [class.typing-effect]="i !== 0 || !welcomeMessageRendered"></div>
+        </div>
+        
+        <!-- Skeleton Loader -->
+        <div *ngIf="messageStatus === 'pending'" class="message ai-message skeleton-container">
+          <div class="skeleton-header"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line" style="width: 80%"></div>
+          <div class="skeleton-line" style="width: 60%"></div>
         </div>
       </div>
       
@@ -72,14 +93,35 @@ export class FormatMessagePipe implements PipeTransform {
                [(ngModel)]="questionText" 
                name="question" 
                placeholder="Digite sua pergunta sobre investimentos..." 
-               required>
-        <button type="submit" [disabled]="!questionText.trim()" class="btn-send">
+               required
+               [disabled]="messageStatus === 'pending'">
+        <button type="submit" 
+                [disabled]="!questionText.trim() || messageStatus === 'pending'" 
+                class="btn-send">
           <span>Enviar</span>
         </button>
       </form>
       
       <div class="footer">
         <p>© Toro Investimentos {{ currentYear }} - Todos os direitos reservados</p>
+      </div>
+    </div>
+    
+    <!-- Modal de confirmação -->
+    <div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+      <div class="modal-container" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Confirmar ação</h3>
+          <button class="modal-close" (click)="closeModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <p>Deseja realmente limpar todo o histórico de conversas?</p>
+          <p class="modal-warning">Esta ação não pode ser desfeita.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-modal btn-cancel" (click)="closeModal()">Cancelar</button>
+          <button class="btn-modal btn-confirm" (click)="confirmClearChat()">Confirmar</button>
+        </div>
       </div>
     </div>
   `,
@@ -206,6 +248,51 @@ export class FormatMessagePipe implements PipeTransform {
       border-left: 3px solid var(--toro-red);
     }
     
+    /* Efeito de digitação */
+    .typing-effect {
+      overflow: hidden;
+      animation: typing 0.05s steps(1, end);
+    }
+    
+    /* Skeleton loader */
+    .skeleton-container {
+      padding: 15px;
+      background-color: white;
+      border-radius: 15px;
+      border-left: 3px solid var(--toro-red);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      max-width: 70%;
+    }
+    
+    .skeleton-header {
+      height: 15px;
+      width: 60%;
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+    
+    .skeleton-line {
+      height: 12px;
+      width: 100%;
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    
+    @keyframes shimmer {
+      0% {
+        background-position: -200% 0;
+      }
+      100% {
+        background-position: 200% 0;
+      }
+    }
+    
     .list-item {
       display: block;
       margin: 4px 0;
@@ -262,6 +349,113 @@ export class FormatMessagePipe implements PipeTransform {
       border-top: 1px solid var(--toro-border);
       background-color: white;
     }
+    
+    /* Estilos para o Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      animation: fadeIn 0.2s ease-out;
+    }
+    
+    .modal-container {
+      background-color: white;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--toro-border);
+    }
+    
+    .modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      color: var(--toro-dark);
+    }
+    
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--toro-gray);
+      line-height: 1;
+      padding: 0;
+      margin: 0;
+    }
+    
+    .modal-body {
+      padding: 20px;
+    }
+    
+    .modal-warning {
+      color: var(--toro-red);
+      font-size: 14px;
+      margin-top: 10px;
+      font-weight: 500;
+    }
+    
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 16px 20px;
+      border-top: 1px solid var(--toro-border);
+    }
+    
+    .btn-modal {
+      padding: 8px 20px;
+      border-radius: 4px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-cancel {
+      background-color: white;
+      color: var(--toro-dark);
+      border: 1px solid var(--toro-border);
+    }
+    
+    .btn-cancel:hover {
+      background-color: var(--toro-light-gray);
+    }
+    
+    .btn-confirm {
+      background-color: var(--toro-red);
+      color: white;
+      border: none;
+    }
+    
+    .btn-confirm:hover {
+      background-color: #c8161c;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideIn {
+      from { transform: translateY(-30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
   `]
 })
 export class ChatComponent implements OnInit, OnDestroy {
@@ -269,6 +463,9 @@ export class ChatComponent implements OnInit, OnDestroy {
   questionText = '';
   isConnected = false;
   currentYear = new Date().getFullYear();
+  messageStatus = MessageStatus.IDLE;
+  showModal = false;
+  welcomeMessageRendered = false;
   
   private userId = '';
   private subscriptions: Subscription[] = [];
@@ -292,6 +489,12 @@ export class ChatComponent implements OnInit, OnDestroy {
           
           if (!isDuplicate) {
             this.messages.push(message);
+            
+            if (!message.isUser) {
+              if (this.messages.length > 1 || !this.welcomeMessageRendered) {
+                this.applyTypingEffect(message);
+              }
+            }
           }
           
           setTimeout(() => this.scrollToBottom(), 100);
@@ -301,6 +504,12 @@ export class ChatComponent implements OnInit, OnDestroy {
       this.subscriptions.push(
         this.questionsService.connectionStatus$.subscribe(status => {
           this.isConnected = status;
+        })
+      );
+      
+      this.subscriptions.push(
+        this.questionsService.messageStatus$.subscribe(status => {
+          this.messageStatus = status;
         })
       );
       
@@ -318,7 +527,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
   
   sendQuestion(): void {
-    if (this.questionText.trim() && this.userId) {
+    if (this.questionText.trim() && this.userId && this.messageStatus !== MessageStatus.PENDING) {
       this.questionsService.sendQuestion(this.userId, this.questionText);
       this.questionText = '';
     }
@@ -329,12 +538,21 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.authService.logout();
   }
   
-  clearChat(): void {
-    if (confirm('Deseja limpar o histórico de conversas? Esta ação não pode ser desfeita.')) {
-      this.questionsService.clearMessages(this.userId);
-      this.messages = [];
-      this.addWelcomeMessage();
-    }
+  openConfirmModal(): void {
+    this.showModal = true;
+    document.body.style.overflow = 'hidden';
+  }
+  
+  closeModal(): void {
+    this.showModal = false;
+    document.body.style.overflow = '';
+  }
+  
+  confirmClearChat(): void {
+    this.questionsService.clearMessages(this.userId);
+    this.messages = [];
+    this.addWelcomeMessage();
+    this.closeModal();
   }
   
   private addWelcomeMessage(): void {
@@ -347,6 +565,63 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.messages.push(welcomeMessage);
     
     this.questionsService.saveMessage(this.userId, welcomeMessage);
+    
+    // Marcar a mensagem de boas-vindas como renderizada após um breve momento
+    setTimeout(() => {
+      this.welcomeMessageRendered = true;
+    }, 200);
+  }
+  
+  private applyTypingEffect(message: Message): void {
+    // Buscar o elemento da mensagem mais recente
+    setTimeout(() => {
+      const messageElements = document.querySelectorAll('.typing-effect');
+      if (messageElements.length > 0) {
+        const lastMessageElement = messageElements[messageElements.length - 1] as HTMLElement;
+        
+        // Armazenar o texto completo
+        const fullText = lastMessageElement.innerHTML;
+        
+        // Para textos muito longos (com mais de 500 caracteres), não usar efeito de digitação
+        if (fullText.length > 500) {
+          // Para textos longos, apenas mostrar o texto completo após um breve delay
+          setTimeout(() => {
+            lastMessageElement.classList.remove('typing-effect');
+          }, 1000);
+          return;
+        }
+        
+        // Limpar o elemento
+        lastMessageElement.innerHTML = '';
+        
+        // Caractere por caractere
+        let i = 0;
+        // Ajusta a velocidade de acordo com o tamanho do texto
+        let typeSpeed = 5; // Base speed (5ms por caractere)
+        
+        // Se o texto for mais longo, torna mais rápido ainda
+        if (fullText.length > 300) typeSpeed = 3;
+        if (fullText.length > 400) typeSpeed = 1;
+        
+        // Simulação de digitação
+        const typeWriter = () => {
+          if (i < fullText.length) {
+            // Adiciona um caractere por vez
+            lastMessageElement.innerHTML += fullText.charAt(i);
+            i++;
+            setTimeout(typeWriter, typeSpeed);
+          } else {
+            // Quando terminar de "digitar", remove a classe para esconder o cursor
+            setTimeout(() => {
+              lastMessageElement.classList.remove('typing-effect');
+            }, 1000); // Mantém o cursor piscando por 1 segundo após terminar
+          }
+          this.scrollToBottom();
+        };
+        
+        typeWriter();
+      }
+    }, 100);
   }
   
   private scrollToBottom(): void {
