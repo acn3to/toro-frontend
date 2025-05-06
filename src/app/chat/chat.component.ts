@@ -38,15 +38,22 @@ export class FormatMessagePipe implements PipeTransform {
   template: `
     <div class="chat-container">
       <div class="chat-header">
-        <h2>Toro AI Assistant</h2>
-        <div class="connection-status" [class.online]="isConnected" [class.offline]="!isConnected">
-          {{ isConnected ? 'Conectado' : 'Desconectado' }}
+        <div class="header-left">
+          <img src="/assets/toro-logo.png" alt="Toro AI Assistant" class="logo" onerror="this.src='https://toroinvestimentos.com.br/toro-radar/toro-logo.svg'; this.onerror=null;">
+          <h2>Toro AI Assistant</h2>
         </div>
-        <div class="header-actions">
-          <button class="clear-button" (click)="clearChat()" title="Limpar histórico">
-            Limpar
-          </button>
-          <button class="logout-button" (click)="logout()">Sair</button>
+        <div class="header-right">
+          <div class="connection-status" [class.online]="isConnected" [class.offline]="!isConnected">
+            {{ isConnected ? 'Conectado' : 'Desconectado' }}
+          </div>
+          <div class="header-actions">
+            <button class="btn-action" (click)="clearChat()" title="Limpar histórico">
+              <span class="action-text">Limpar</span>
+            </button>
+            <button class="btn-action btn-logout" (click)="logout()">
+              <span class="action-text">Sair</span>
+            </button>
+          </div>
         </div>
       </div>
       
@@ -66,35 +73,61 @@ export class FormatMessagePipe implements PipeTransform {
                name="question" 
                placeholder="Digite sua pergunta sobre investimentos..." 
                required>
-        <button type="submit" [disabled]="!questionText.trim()">Enviar</button>
+        <button type="submit" [disabled]="!questionText.trim()" class="btn-send">
+          <span>Enviar</span>
+        </button>
       </form>
+      
+      <div class="footer">
+        <p>© Toro Investimentos {{ currentYear }} - Todos os direitos reservados</p>
+      </div>
     </div>
   `,
   styles: [`
     .chat-container {
-      max-width: 800px;
-      margin: 20px auto;
-      border: 1px solid #ccc;
-      border-radius: 4px;
       display: flex;
       flex-direction: column;
-      height: 90vh;
+      height: 100vh;
+      background-color: var(--toro-light);
     }
     
     .chat-header {
-      padding: 10px;
-      background-color: #f5f5f5;
-      border-bottom: 1px solid #ccc;
+      padding: 15px 20px;
+      background-color: white;
+      border-bottom: 1px solid var(--toro-border);
       display: flex;
       justify-content: space-between;
       align-items: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    .header-left {
+      display: flex;
+      align-items: center;
+    }
+    
+    .logo {
+      height: 28px;
+      margin-right: 12px;
+    }
+    
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    
+    h2 {
+      font-size: 18px;
+      margin: 0;
+      color: var(--toro-dark);
     }
     
     .connection-status {
       padding: 5px 10px;
-      border-radius: 4px;
+      border-radius: 20px;
       font-size: 12px;
-      font-weight: bold;
+      font-weight: 500;
     }
     
     .online {
@@ -112,47 +145,65 @@ export class FormatMessagePipe implements PipeTransform {
       gap: 10px;
     }
     
-    .logout-button, .clear-button {
-      color: white;
-      border: none;
-      padding: 5px 10px;
+    .btn-action {
+      color: var(--toro-dark);
+      background-color: transparent;
+      border: 1px solid var(--toro-border);
+      padding: 6px 12px;
       border-radius: 4px;
       cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
     }
     
-    .logout-button {
-      background-color: #dc3545;
+    .btn-action:hover {
+      background-color: var(--toro-light-gray);
     }
     
-    .clear-button {
-      background-color: #6c757d;
+    .btn-logout {
+      color: white;
+      background-color: var(--toro-red);
+      border: none;
+    }
+    
+    .btn-logout:hover {
+      background-color: #c8161c;
+    }
+    
+    .action-text {
+      font-weight: 500;
     }
     
     .chat-messages {
       flex-grow: 1;
-      padding: 10px;
+      padding: 20px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      background-color: #f9f9f9;
+      gap: 15px;
+      background-color: #f9f9fa;
     }
     
     .message {
-      padding: 8px 12px;
+      padding: 12px 15px;
       border-radius: 15px;
       max-width: 70%;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }
     
     .user-message {
-      background-color: #dcf8c6;
+      background-color: #e3f2fd;
       align-self: flex-end;
+      border-bottom-right-radius: 5px;
+      color: #0d47a1;
     }
     
     .ai-message {
-      background-color: #ffffff;
+      background-color: white;
       align-self: flex-start;
-      border: 1px solid #ddd;
+      border-bottom-left-radius: 5px;
+      color: var(--toro-dark);
+      border-left: 3px solid var(--toro-red);
     }
     
     .list-item {
@@ -162,30 +213,54 @@ export class FormatMessagePipe implements PipeTransform {
     
     .message-form {
       display: flex;
-      padding: 10px;
-      border-top: 1px solid #ccc;
+      padding: 15px 20px;
+      background-color: white;
+      border-top: 1px solid var(--toro-border);
     }
     
     input {
       flex-grow: 1;
-      padding: 10px;
-      border: 1px solid #ccc;
+      padding: 12px 15px;
+      border: 1px solid var(--toro-border);
       border-radius: 4px;
+      font-size: 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
     
-    button {
-      background-color: #4CAF50;
+    input:focus {
+      outline: none;
+      border-color: var(--toro-red);
+      box-shadow: 0 0 0 3px rgba(227, 30, 36, 0.1);
+    }
+    
+    .btn-send {
+      background-color: var(--toro-red);
       color: white;
       border: none;
-      padding: 10px 15px;
+      padding: 0 20px;
       margin-left: 10px;
       border-radius: 4px;
       cursor: pointer;
+      font-weight: 500;
+      transition: background-color 0.2s;
     }
     
-    button:disabled {
-      background-color: #cccccc;
+    .btn-send:hover {
+      background-color: #c8161c;
+    }
+    
+    .btn-send:disabled {
+      background-color: var(--toro-gray);
       cursor: not-allowed;
+    }
+    
+    .footer {
+      padding: 10px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--toro-gray);
+      border-top: 1px solid var(--toro-border);
+      background-color: white;
     }
   `]
 })
@@ -193,6 +268,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   messages: Message[] = [];
   questionText = '';
   isConnected = false;
+  currentYear = new Date().getFullYear();
   
   private userId = '';
   private subscriptions: Subscription[] = [];
@@ -254,7 +330,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
   
   clearChat(): void {
-    if (confirm('Tem certeza que deseja limpar todo o histórico de mensagens?')) {
+    if (confirm('Deseja limpar o histórico de conversas? Esta ação não pode ser desfeita.')) {
       this.questionsService.clearMessages(this.userId);
       this.messages = [];
       this.addWelcomeMessage();
@@ -263,7 +339,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   
   private addWelcomeMessage(): void {
     const welcomeMessage: Message = {
-      text: 'Olá! Sou o Toro AI Assistant. Como posso ajudar com suas dúvidas sobre investimentos?',
+      text: 'Olá! Sou o assistente virtual da Toro Investimentos. Estou aqui para ajudar com suas dúvidas sobre investimentos, ações, fundos e muito mais. Como posso te ajudar hoje?',
       isUser: false,
       timestamp: new Date()
     };
