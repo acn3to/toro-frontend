@@ -76,15 +76,16 @@ export class FormatMessagePipe implements PipeTransform {
              [class.ai-message]="!message.isUser"
              [class.welcome-message]="i === 0 && !message.isUser">
           <div *ngIf="message.isUser">{{ message.text }}</div>
-          <div *ngIf="!message.isUser" [innerHTML]="message.text | formatMessage" [class.typing-effect]="i !== 0 || !welcomeMessageRendered"></div>
+          <div *ngIf="!message.isUser" [innerHTML]="message.text | formatMessage"></div>
         </div>
         
-        <!-- Skeleton Loader -->
-        <div *ngIf="messageStatus === 'pending'" class="message ai-message skeleton-container">
-          <div class="skeleton-header"></div>
-          <div class="skeleton-line"></div>
-          <div class="skeleton-line" style="width: 80%"></div>
-          <div class="skeleton-line" style="width: 60%"></div>
+        <!-- Loader com pontos animados -->
+        <div *ngIf="messageStatus === 'pending'" class="message ai-message dots-loader-container">
+          <div class="dots-loader">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
         </div>
       </div>
       
@@ -248,48 +249,44 @@ export class FormatMessagePipe implements PipeTransform {
       border-left: 3px solid var(--toro-red);
     }
     
-    /* Efeito de digitação */
-    .typing-effect {
-      overflow: hidden;
-      animation: typing 0.05s steps(1, end);
-    }
-    
-    /* Skeleton loader */
-    .skeleton-container {
+    /* Loader de pontos */
+    .dots-loader-container {
       padding: 15px;
-      background-color: white;
-      border-radius: 15px;
-      border-left: 3px solid var(--toro-red);
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      max-width: 70%;
+      max-width: 100px;
     }
     
-    .skeleton-header {
-      height: 15px;
-      width: 60%;
-      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-      border-radius: 4px;
-      margin-bottom: 10px;
+    .dots-loader {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
     }
     
-    .skeleton-line {
-      height: 12px;
-      width: 100%;
-      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-      border-radius: 4px;
-      margin-bottom: 8px;
+    .dot {
+      width: 10px;
+      height: 10px;
+      background-color: var(--toro-red);
+      border-radius: 50%;
+      display: inline-block;
+      animation: bouncing 1.4s infinite ease-in-out both;
     }
     
-    @keyframes shimmer {
-      0% {
-        background-position: -200% 0;
+    .dot:nth-child(1) {
+      animation-delay: -0.32s;
+    }
+    
+    .dot:nth-child(2) {
+      animation-delay: -0.16s;
+    }
+    
+    @keyframes bouncing {
+      0%, 80%, 100% { 
+        transform: scale(0);
+        opacity: 0.5;
       }
-      100% {
-        background-position: 200% 0;
+      40% { 
+        transform: scale(1.0);
+        opacity: 1;
       }
     }
     
@@ -465,7 +462,6 @@ export class ChatComponent implements OnInit, OnDestroy {
   currentYear = new Date().getFullYear();
   messageStatus = MessageStatus.IDLE;
   showModal = false;
-  welcomeMessageRendered = false;
   
   private userId = '';
   private subscriptions: Subscription[] = [];
@@ -489,15 +485,8 @@ export class ChatComponent implements OnInit, OnDestroy {
           
           if (!isDuplicate) {
             this.messages.push(message);
-            
-            if (!message.isUser) {
-              if (this.messages.length > 1 || !this.welcomeMessageRendered) {
-                this.applyTypingEffect(message);
-              }
-            }
+            setTimeout(() => this.scrollToBottom(), 100);
           }
-          
-          setTimeout(() => this.scrollToBottom(), 100);
         })
       );
       
@@ -563,65 +552,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     };
     
     this.messages.push(welcomeMessage);
-    
     this.questionsService.saveMessage(this.userId, welcomeMessage);
-    
-    // Marcar a mensagem de boas-vindas como renderizada após um breve momento
-    setTimeout(() => {
-      this.welcomeMessageRendered = true;
-    }, 200);
-  }
-  
-  private applyTypingEffect(message: Message): void {
-    // Buscar o elemento da mensagem mais recente
-    setTimeout(() => {
-      const messageElements = document.querySelectorAll('.typing-effect');
-      if (messageElements.length > 0) {
-        const lastMessageElement = messageElements[messageElements.length - 1] as HTMLElement;
-        
-        // Armazenar o texto completo
-        const fullText = lastMessageElement.innerHTML;
-        
-        // Para textos muito longos (com mais de 500 caracteres), não usar efeito de digitação
-        if (fullText.length > 500) {
-          // Para textos longos, apenas mostrar o texto completo após um breve delay
-          setTimeout(() => {
-            lastMessageElement.classList.remove('typing-effect');
-          }, 1000);
-          return;
-        }
-        
-        // Limpar o elemento
-        lastMessageElement.innerHTML = '';
-        
-        // Caractere por caractere
-        let i = 0;
-        // Ajusta a velocidade de acordo com o tamanho do texto
-        let typeSpeed = 5; // Base speed (5ms por caractere)
-        
-        // Se o texto for mais longo, torna mais rápido ainda
-        if (fullText.length > 300) typeSpeed = 3;
-        if (fullText.length > 400) typeSpeed = 1;
-        
-        // Simulação de digitação
-        const typeWriter = () => {
-          if (i < fullText.length) {
-            // Adiciona um caractere por vez
-            lastMessageElement.innerHTML += fullText.charAt(i);
-            i++;
-            setTimeout(typeWriter, typeSpeed);
-          } else {
-            // Quando terminar de "digitar", remove a classe para esconder o cursor
-            setTimeout(() => {
-              lastMessageElement.classList.remove('typing-effect');
-            }, 1000); // Mantém o cursor piscando por 1 segundo após terminar
-          }
-          this.scrollToBottom();
-        };
-        
-        typeWriter();
-      }
-    }, 100);
   }
   
   private scrollToBottom(): void {
