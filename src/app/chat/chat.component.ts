@@ -1,15 +1,40 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, OnDestroy, Pipe, PipeTransform } from '@angular/core';
+import { CommonModule, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../auth.service';
 import { QuestionsService } from '../questions.service';
 import { Message } from '../models/message.model';
 import { Subscription } from 'rxjs';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+
+@Pipe({
+  name: 'formatMessage',
+  standalone: true
+})
+export class FormatMessagePipe implements PipeTransform {
+  constructor(private sanitizer: DomSanitizer) {}
+
+  transform(text: string): SafeHtml {
+    if (!text) return '';
+    
+    let formattedText = text.replace(/%\[\d+\]%/g, '');
+    
+    formattedText = formattedText.replace(/\n/g, '<br>');
+    
+    formattedText = formattedText.replace(/(\d+\.)\s+([^\n]+)/g, '<span class="list-item">$1 $2</span>');
+    
+    formattedText = formattedText.replace(/[•\-]\s+([^\n]+)/g, '<span class="list-item">• $1</span>');
+    
+    formattedText = formattedText.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    
+    return this.sanitizer.bypassSecurityTrustHtml(formattedText);
+  }
+}
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, NgClass, FormatMessagePipe],
   template: `
     <div class="chat-container">
       <div class="chat-header">
@@ -17,7 +42,12 @@ import { Subscription } from 'rxjs';
         <div class="connection-status" [class.online]="isConnected" [class.offline]="!isConnected">
           {{ isConnected ? 'Conectado' : 'Desconectado' }}
         </div>
-        <button class="logout-button" (click)="logout()">Sair</button>
+        <div class="header-actions">
+          <button class="clear-button" (click)="clearChat()" title="Limpar histórico">
+            Limpar
+          </button>
+          <button class="logout-button" (click)="logout()">Sair</button>
+        </div>
       </div>
       
       <div class="chat-messages" #chatMessages>
@@ -25,7 +55,8 @@ import { Subscription } from 'rxjs';
              class="message" 
              [class.user-message]="message.isUser" 
              [class.ai-message]="!message.isUser">
-          {{ message.text }}
+          <div *ngIf="message.isUser">{{ message.text }}</div>
+          <div *ngIf="!message.isUser" [innerHTML]="message.text | formatMessage"></div>
         </div>
       </div>
       
@@ -76,13 +107,25 @@ import { Subscription } from 'rxjs';
       color: #721c24;
     }
     
-    .logout-button {
-      background-color: #dc3545;
+    .header-actions {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .logout-button, .clear-button {
       color: white;
       border: none;
       padding: 5px 10px;
       border-radius: 4px;
       cursor: pointer;
+    }
+    
+    .logout-button {
+      background-color: #dc3545;
+    }
+    
+    .clear-button {
+      background-color: #6c757d;
     }
     
     .chat-messages {
@@ -110,6 +153,11 @@ import { Subscription } from 'rxjs';
       background-color: #ffffff;
       align-self: flex-start;
       border: 1px solid #ddd;
+    }
+    
+    .list-item {
+      display: block;
+      margin: 4px 0;
     }
     
     .message-form {
@@ -162,8 +210,14 @@ export class ChatComponent implements OnInit, OnDestroy {
       
       this.subscriptions.push(
         this.questionsService.messages$.subscribe(message => {
-          this.messages.push(message);
-
+          const isDuplicate = this.messages.some(
+            m => m.text === message.text && m.isUser === message.isUser
+          );
+          
+          if (!isDuplicate) {
+            this.messages.push(message);
+          }
+          
           setTimeout(() => this.scrollToBottom(), 100);
         })
       );
@@ -176,7 +230,9 @@ export class ChatComponent implements OnInit, OnDestroy {
       
       this.questionsService.connectWebSocket(this.userId);
       
-      this.addWelcomeMessage();
+      if (this.messages.length === 0) {
+        this.addWelcomeMessage();
+      }
     }
   }
   
@@ -197,6 +253,14 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.authService.logout();
   }
   
+  clearChat(): void {
+    if (confirm('Tem certeza que deseja limpar todo o histórico de mensagens?')) {
+      this.questionsService.clearMessages(this.userId);
+      this.messages = [];
+      this.addWelcomeMessage();
+    }
+  }
+  
   private addWelcomeMessage(): void {
     const welcomeMessage: Message = {
       text: 'Olá! Sou o Toro AI Assistant. Como posso ajudar com suas dúvidas sobre investimentos?',
@@ -205,6 +269,8 @@ export class ChatComponent implements OnInit, OnDestroy {
     };
     
     this.messages.push(welcomeMessage);
+    
+    this.questionsService.saveMessage(this.userId, welcomeMessage);
   }
   
   private scrollToBottom(): void {

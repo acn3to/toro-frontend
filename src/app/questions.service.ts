@@ -15,10 +15,19 @@ export class QuestionsService {
   
   private readonly API_ENDPOINT = 'https://ka8fa8gabl.execute-api.us-east-2.amazonaws.com/Prod/questions';
   private readonly WEBSOCKET_BASE = 'wss://48u9qfzbz5.execute-api.us-east-2.amazonaws.com/prod';
+  private readonly STORAGE_KEY_PREFIX = 'toro_messages_';
+  
+  private messagesCache: Map<string, Message[]> = new Map();
+  private currentUserId: string = '';
   
   constructor() { }
   
   connectWebSocket(userId: string): void {
+    this.currentUserId = userId;
+    
+    // Carregar mensagens salvas
+    this.loadMessages(userId);
+    
     const url = `${this.WEBSOCKET_BASE}?user_id=${userId}`;
     
     try {
@@ -109,6 +118,65 @@ export class QuestionsService {
       timestamp: new Date()
     };
     
+    this.saveMessage(this.currentUserId, message);
+    
     this.messageSubject.next(message);
+  }
+  
+  loadMessages(userId: string): Message[] {
+    if (!userId) return [];
+    
+    if (this.messagesCache.has(userId)) {
+      const messages = this.messagesCache.get(userId) || [];
+      messages.forEach(msg => this.messageSubject.next(msg));
+      return messages;
+    }
+    
+    try {
+      const storedMessages = localStorage.getItem(this.STORAGE_KEY_PREFIX + userId);
+      if (storedMessages) {
+        const messages: Message[] = JSON.parse(storedMessages);
+        
+        messages.forEach(msg => {
+          if (typeof msg.timestamp === 'string') {
+            msg.timestamp = new Date(msg.timestamp);
+          }
+        });
+        
+        this.messagesCache.set(userId, messages);
+        
+        messages.forEach(msg => this.messageSubject.next(msg));
+        
+        return messages;
+      }
+    } catch (error) {
+      console.error('Erro ao carregar mensagens:', error);
+    }
+    
+    this.messagesCache.set(userId, []);
+    return [];
+  }
+  
+  saveMessage(userId: string, message: Message): void {
+    if (!userId) return;
+    
+    try {
+      const messages = this.messagesCache.get(userId) || [];
+      
+      messages.push(message);
+      
+      this.messagesCache.set(userId, messages);
+      
+      localStorage.setItem(this.STORAGE_KEY_PREFIX + userId, JSON.stringify(messages));
+    } catch (error) {
+      console.error('Erro ao salvar mensagem:', error);
+    }
+  }
+  
+  clearMessages(userId: string): void {
+    if (!userId) return;
+    
+    localStorage.removeItem(this.STORAGE_KEY_PREFIX + userId);
+    this.messagesCache.delete(userId);
   }
 }
