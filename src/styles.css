@@ -1,1 +1,27 @@
 /* You can add global styles to this file, and also import other style files */
+
+/* Global Styles */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  color: #333;
+  background-color: #f8f9fa;
+  height: 100vh;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+app-root {
+  display: block;
+  height: 100%;
+}

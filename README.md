@@ -1,59 +1,65 @@
-# ToroFrontend
+# Toro AI Assistant - Angular Frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.0.2.
+A simple Angular frontend for the Toro AI Assistant challenge.
 
-## Development server
+## Overview
 
-To start a local development server, run:
+This is a minimal Angular implementation of the Toro AI Assistant frontend, featuring:
 
-```bash
-ng serve
-```
+- Login screen
+- Chat interface
+- WebSocket connection for real-time updates
+- Messages history
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Requirements
 
-## Code scaffolding
+- Node.js (v14+)
+- npm or yarn
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Installation
 
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
+1. Clone this repository
+2. Install the dependencies:
 
 ```bash
-ng build
+npm install
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+## Running the Application
 
-## Running unit tests
+You can run the application in two ways:
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+### Using Angular CLI
 
 ```bash
-ng test
+npm start
 ```
 
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
+or
 
 ```bash
-ng e2e
+ng serve --open
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+### Using the Python Script
 
-## Additional Resources
+```bash
+python serve.py
+```
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+## Architecture
+
+The application is organized into:
+
+- Components:
+  - LoginComponent: Simple login form
+  - ChatComponent: Chat interface with message history
+- Services:
+  - AuthService: Handles authentication
+  - QuestionsService: Manages API communication and WebSocket
+
+## API Integration
+
+The application integrates with:
+- REST API for sending questions
+- WebSocket for receiving real-time updates
